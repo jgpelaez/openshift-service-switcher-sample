@@ -1,0 +1,152 @@
+---
+kind: Template
+apiVersion: v1
+metadata:
+  name: switcher-example
+  annotations:
+    openshift.io/display-name: switcher
+    description: An example switcher application that serves static content. For more
+      information about using this template, including OpenShift considerations, see
+      https://github.com/openshift/switcher-ex/blob/master/README.md.
+    tags: quickstart,switcher
+    iconClass: icon-apache
+    template.openshift.io/long-description: This template defines resources needed
+      to develop a static application served by switcher, including a build configuration
+      and application deployment configuration.
+    template.openshift.io/provider-display-name: Red Hat, Inc.
+    template.openshift.io/documentation-url: https://github.com/openshift/switcher-ex
+    template.openshift.io/support-url: https://access.redhat.com
+message: |-
+  The following service(s) have been created in your project: ${NAME}.
+
+  For more information about using this template, including OpenShift considerations, see https://github.com/openshift/switcher-ex/blob/master/README.md.
+labels:
+  template: switcher-example
+objects:
+- kind: Service
+  apiVersion: v1
+  metadata:
+    name: "${NAME}"
+    annotations:
+      description: Exposes and load balances the application pods
+  spec:
+    ports:
+    - name: web
+      port: 8080
+      targetPort: 8080
+    selector:
+      name: "${NAME}"
+- kind: Service
+  apiVersion: v1
+  metadata:
+    name: "${NAME}-2"
+    annotations:
+      description: Exposes and load balances the application pods
+  spec:
+    ports:
+    - name: web
+      port: 8081
+      targetPort: 8080
+    selector:
+      name: "${NAME}"
+- kind: ConfigMap
+  apiVersion: v1
+  metadata:
+    name: "${NAME}"
+  data:
+    index.html: |-
+      Hello World!
+
+- kind: Route
+  apiVersion: v1
+  metadata:
+    name: "${NAME}"
+    annotations:
+      template.openshift.io/expose-uri: http://{.spec.host}{.spec.path}
+  spec:
+    host: "${APPLICATION_DOMAIN}"
+    to:
+      kind: Service
+      name: "${NAME}"
+- kind: Route
+  apiVersion: v1
+  metadata:
+    name: "${NAME}-2"
+    annotations:
+      template.openshift.io/expose-uri: http://{.spec.host}{.spec.path}
+  spec:
+    host: "${APPLICATION_DOMAIN}"
+    to:
+      kind: Service
+      name: "${NAME}-2"
+- kind: DeploymentConfig
+  apiVersion: v1
+  metadata:
+    name: "${NAME}"
+    annotations:
+      description: Defines how to deploy the application server
+  spec:
+    strategy:
+      type: Rolling
+    triggers:
+    - type: ConfigChange
+    replicas: 1
+    selector:
+      name: "${NAME}"
+    template:
+      metadata:
+        name: "${NAME}"
+        labels:
+          name: "${NAME}"
+      spec:
+        volumes:
+          - name: app-src
+            configMap:
+              name: "${NAME}"
+              defaultMode: 420
+        containers:
+        - name: switcher-example
+          image: "${IMAGE}"
+          command: 
+            - "/usr/libexec/s2i/run"
+          ports:
+          - containerPort: 8080
+          volumeMounts:
+            - name: app-src
+              mountPath: /opt/app-root/src
+          readinessProbe:
+            timeoutSeconds: 3
+            initialDelaySeconds: 3
+            httpGet:
+              path: "/"
+              port: 8080
+          livenessProbe:
+            timeoutSeconds: 3
+            initialDelaySeconds: 30
+            httpGet:
+              path: "/"
+              port: 8080
+          resources:
+            limits:
+              memory: "${MEMORY_LIMIT}"
+          env: []
+parameters:
+- name: IMAGE
+#https://github.com/sclorg/nginx-container/tree/master/1.10
+  value: registry.access.redhat.com/rhscl/nginx-110-rhel7:1.10
+
+- name: NAME
+  displayName: Name
+  description: The name assigned to all of the frontend objects defined in this template.
+  required: true
+  value: switcher-example
+- name: MEMORY_LIMIT
+  displayName: Memory Limit
+  description: Maximum amount of memory the container can use.
+  required: true
+  value: 512Mi
+- name: APPLICATION_DOMAIN
+  displayName: Application Hostname
+  description: The exposed hostname that will route to the switcher service, if left
+    blank a value will be defaulted.
+  value: ''

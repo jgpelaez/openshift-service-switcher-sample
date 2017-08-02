@@ -105,7 +105,7 @@ objects:
               name: "${NAME}"
               defaultMode: 420
         containers:
-        - name: switcher-example
+        - name: ${NAME}
           image: "${IMAGE}"
           command: 
             - "/usr/libexec/s2i/run"
